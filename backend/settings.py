@@ -148,3 +148,13 @@ SIMPLE_JWT = {
     'REFRESH_TOKEN_LIFETIME': timedelta(days = 7),
     'AUTH_HEADER_TYPES': ('Bearer')
 }
+
+db_url = os.getenv("DATABASE_URL")
+if not db_url:
+    raise Exception("DATABASE_URL is not set in environment")
+try:
+    parsed_db = dj_database_url.parse(db_url)
+    print("Parsed DB config:", parsed_db)
+except Exception as e:
+    print("dj_database_url parsing failed:", e)
+    raise

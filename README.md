@@ -4,7 +4,7 @@
 
 backend - Python/Django
 frontend - React + Tailwindcss
-database - PostgreSQL
+database - sqlite3
 
 ## To get started
 

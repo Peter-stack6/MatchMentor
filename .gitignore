@@ -1,0 +1,30 @@
+# Python
+*.pyc
+*.pyo
+__pycache__/
+.Python
+env/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+htmlcov/
+.ipynb_checkpoints
+.mypy_cache/
+.dmypy.json
+dmypy.json
+celerybeat-schedule/
+celeryd.pid
+
+# Django
+*.log
+*.pot
+*.mo
+static/         # If you collect static files here
+
+# Environment variables
+.env

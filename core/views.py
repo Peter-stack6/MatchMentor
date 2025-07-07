@@ -1,3 +1,6 @@
+from dateutil import parser as date_parser
+from datetime import datetime
+
 from django.shortcuts import render, get_object_or_404
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
@@ -7,9 +10,10 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.views import Response, APIView
 from rest_framework.parsers import JSONParser
 from rest_framework import status
+from rest_framework.status import HTTP_200_OK
 
 from .serializers import *
-from .models import Profile, Notification, MentorshipRequest, Mentorship, Session
+from .models import Profile, Notification, MentorshipRequest, Mentorship, Session, Availability
 
 def HomePage(request):
 	return render(request, "index.html")
@@ -25,11 +29,52 @@ def Dashboard(request):
 def ViewProfile(request):
 	return render(request, "viewProfile.html")
 
+@login_required(login_url = 'login/')
+def EditProfile(request):
+	return render(request, "editProfile.html")
+
+@login_required(login_url = 'login/')
+def AdminRegister(request):
+	return render(request, "register.html")
+
+@login_required(login_url = 'login/')
+def Mentors(request):
+	return render(request, "mentors.html")
+
+@login_required(login_url = 'login/')
+def MyRequests(request):
+	return render(request, "my_requests.html")
+
+@login_required(login_url = 'login/')
+def MySessions(request):
+	return render(request, "my_sessions.html")
+
+@login_required(login_url = 'login/')
+def availability(request):
+	return render(request, "availability.html")
+
+@login_required(login_url = 'login/') 
+def mentor_requests(request):
+	return render(request, "requests.html")
+
+@login_required(login_url = 'login/') 
+def mentor_sessions(request):
+	return render(request, "mentor_sessions.html")
+
+@login_required(login_url = 'login/') 
+def matches(request):
+	return render(request, "matches.html")
+
+@login_required(login_url = 'login/') 
+def sessions(request):
+	return render(request, "sessions.html")
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def GetUser(request):
 	username = request.user.username
-	return Response({'username': username}, status = status.HTTP_200_OK)
+	role = request.user.profile.role
+	return Response({'username': username, 'role': role}, status = status.HTTP_200_OK)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -50,103 +95,79 @@ def GetProfile(request):
 
 @api_view(['GET'])
 def GetId(request, id):
-	user = get_object_or_404(User, pk = id)
-	profile = user.profile
+	profile = get_object_or_404(Profile, pk = id)
 
-	serializer = ProfileSerializer(profile, many = True)
-	return Response({'profile': serializer.data})
+	serializer = ProfileSerializer(profile)
+	return Response(serializer.data, status = status.HTTP_200_OK)
 
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
 def UpdateProfile(request):
 	user = request.user
 
-	try:
-		data = JSONParser().parse(request)
-		serializer = ProfileSerializer(data = data)
+	data = JSONParser().parse(request)
+	serializer = ProfileSerializer(data = data)
 
-		if serializer.is_valid(raise_exception = True):
-			details = serializer.data
+	if serializer.is_valid(raise_exception = True):
+		details = serializer.data
 
-			user_profile = user.profile
-			user_profile.bio = details.bio
-			user_profile.skills = details.skills
-			user_profile.goals = details.goals
-			user_profile.save()
+		user_profile = user.profile
+		user_profile.bio = details['bio']
+		user_profile.skills = details['skills']
+		user_profile.goals = details['goals']
+		user_profile.save()
 
-			Notification.objects.create(
-				user = user,
-				text = "You updated your profile"
-			)
-
-
-	except Exception as e:
-		pass
+		Notification.objects.create(
+			user = user,
+			text = "You updated your profile"
+		)
+		return Response(serializer.data, status.HTTP_200_OK)
 
 class RegisterUser(APIView):
 
-	# permission_classes = [IsAuthenticated, IsAdminUser]
+	permission_classes = [IsAuthenticated, IsAdminUser]
 
 	def post(self, request):
 
-		try:
-			data = JSONParser().parse(request)
-			serializer = Register(data = data)
-			
-			if serializer.is_valid(raise_exception = True):
-				user = serializer.save()
-				role = serializer.data.role
+		data = JSONParser().parse(request)
+		serializer = Register(data = data)
+		
+		if serializer.is_valid(raise_exception = True):
+			user = serializer.save()
 
-				Profile.objects.create(
-					user = user,
-					role = role
-				)
+			Notification.objects.create(
+				user = request.user,
+				text = f"You added the user {user.username}"
+			)
 
-				Notification.objects.create(
-					user = user,
-					text = "The admin user has added your user"
-				)
-
-				if role == "admin":
-					user.is_superuser = True
-
-				return Response(serializer.data, status = status.HTTP_200_OK)
-			
-		except Exception as error:
-			return Response({"Error": str(error)}, status = status.HTTP_400_BAD_REQUEST)
+			return Response(serializer.data, status = status.HTTP_200_OK)
 
 class SendRequest(APIView):
 	permission_classes = [IsAuthenticated]
 
 	def post(self, request):
-		try:
+		mentee = request.user
 
-			data = JSONParser().parse(request)
-			serializer = UserSerializer(data = data, partial = True)
+		mentor_profile = get_object_or_404(Profile, pk = request.data.get("id"))
+		mentor = mentor_profile.user
 
-			mentee = request.user
-			mentor = get_object_or_404(User, pk = serializer.data.id)
+		MentorshipRequest.objects.create(
+			mentee = mentee,
+			mentor = mentor,
+			status = 'pending'
+		)
 
-			MentorshipRequest.objects.create(
-				mentee = mentee,
-				mentor = mentor,
-				status = 'pending'
-			)
+		Notification.objects.create(
+			user = request.user,
+			text = f"You sent a mentorship request to the mentor {mentor.username}"
+		)
 
-			Notification.objects.create(
-				user = request.user,
-				text = f"You sent a mentorship request to the mentor {mentor.username}"
-			)
+		Notification.objects.create(
+			user = mentor,
+			text = f"You received a mentorship request from {request.user.username}"
+		)
 
-			Notification.objects.create(
-				user = mentor,
-				text = f"You received a mentorship request from {request.user.username}"
-			)
-
-			return Response({"Success": "successful"}, status = HTTP_200_OK)
-
-		except Exception as error:
-			return Response({"Error": str(error)}, status = status.HTTP_400_BAD_REQUEST)
+		return Response({"Success": "successful"}, status = status.HTTP_200_OK)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -156,7 +177,7 @@ def GetMenteeRequests(request):
 	all_requests = mentee.mentee_request.all()
 	serializer = MentorshipReqSerializer(all_requests, many = True)
 
-	return Response({"requests": serializer.data}, status = HTTP_200_OK)
+	return Response(serializer.data, status = HTTP_200_OK)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -171,100 +192,152 @@ def GetMentorRequests(request):
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
 def UpdateStatus(request, id):
-	try:
-		mentor = request.user
-		mentorship_request = get_object_or_404(MentorshipRequest, pk = id)
-		mentee = mentorship_request.mentee
+    try:
+        mentor = request.user
+        mentorship_request = get_object_or_404(MentorshipRequest, pk=id)
 
-		data = JSONParser().parse(request)
-		serializer = StatusSerializer(data = data)
+        # Ensure only the assigned mentor can respond
+        if mentorship_request.mentor != mentor:
+            return Response(
+                {"detail": "You are not authorized to update this request."},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
-		if serializer.data.status == "accepted":
-			Mentorship.objects.create(
-				mentee = mentee,
-				mentor = mentor
-			)
-			Notification.objects.create(
-				user = mentee,
-				text = f"The mentor {mentor.username} has accepted your mentorship request"
-			)
-			Notification.objects.create(
-				user = mentor,
-				text = f"You accepted the mentee {mentee.username}'s request"
-			)
-			mentorship_request.delete()
-			return Response(serializer.data, status = HTTP_200_OK)
+        # Validate input with StatusSerializer
+        serializer = StatusSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-		elif serializer.data.status == "rejected":
-			Notification.objects.create(
-				user = mentee,
-				text = f"The mentor {mentor.username} has rejected your mentorship request"
-			)
-			Notification.objects.create(
-				user = mentor,
-				text = f"You rejected the mentee {mentee.username}'s request"
-			)
-			mentorship_request.delete()
+        status_value = serializer.validated_data.get('status')
+        mentee = mentorship_request.mentee
 
-			return Response(serializer.data, status = HTTP_200_OK)
-	except Exception as error:
-		return Response({"Error": str(error)}, status = HTTP_400_BAD_REQUEST)
+        if status_value == "accepted":
+            Mentorship.objects.create(mentee=mentee, mentor=mentor)
+            Notification.objects.create(
+                user=mentee,
+                text=f"The mentor {mentor.username} has accepted your mentorship request"
+            )
+            Notification.objects.create(
+                user=mentor,
+                text=f"You accepted the mentee {mentee.username}'s request"
+            )
 
-@api_view(['POST'])
+        elif status_value == "rejected":
+            Notification.objects.create(
+                user=mentee,
+                text=f"The mentor {mentor.username} has rejected your mentorship request"
+            )
+            Notification.objects.create(
+                user=mentor,
+                text=f"You rejected the mentee {mentee.username}'s request"
+            )
+
+        # Delete the request regardless of status
+        mentorship_request.delete()
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    except Exception as error:
+        return Response({"error": str(error)}, status=status.HTTP_400_BAD_REQUEST)@api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def ScheduleSession(request):
-	try:
-		data = JSONParser().parse(request)
-		serializer = SessionSerializer(data = data)
+    """
+    Schedule a mentorship session only if the requested datetime
+    falls within the mentor's availability blocks.
+    """
+    try:
+        data = JSONParser().parse(request)
+        mentorship = get_object_or_404(Mentorship, pk=data.get('id'))
+        requested_dt = date_parser.isoparse(data.get('date'))
+    except Exception as e:
+        return Response(
+            {"detail": "Invalid payload or datetime format."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
-		mentorship = get_object_or_404(Mentorship, pk = serializer.data.id)
+    # Fetch availability blocks for this mentor on that date
+    avail_blocks = Availability.objects.filter(
+        mentor=mentorship.mentor,
+        date=requested_dt.date()
+    )
 
-		Session.objects.create(
-			mentorship = mentorship,
-			date = serializer.data.date
-		)
+    # Check if requested datetime fits in any block
+    for block in avail_blocks:
+        start_dt = datetime.combine(block.date, block.start)
+        end_dt   = datetime.combine(block.date, block.end)
+        if start_dt <= requested_dt <= end_dt:
+            # Good: within availability → create session
+            session = Session.objects.create(
+                mentorship=mentorship,
+                date=data.get('date')
+            )
+            serializer = SessionSerializer(session)
+            return Response(serializer.data, status=status.HTTP_200_OK)
 
-		Notification.objects.create(
-			user = request.user,
-			text = f"You scheduled a session with {mentorship.mentor}"
-		)
-
-		Notification.objects.create(
-			user = mentorship.mentor,
-			text = f"{request.user.username} scheduled a session with you"
-		)
-
-		return Response({serializer.data}, status = status.HTTP_200_OK)
-
-	except Exception as error:
-		return Response({"Error": str(error)}, status = status.HTTP_400_BAD_REQUEST)
+    # No matching block found → reject
+    return Response(
+        {"detail": "Requested time not within mentor's availability."},
+        status=status.HTTP_400_BAD_REQUEST
+    )
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def GetMenteeSessions(request):
-	try:
 		mentee = request.user
-		mentorship = mentee.mentors.sessions.all()
+		sessions = Session.objects.filter(mentorship__mentee=mentee)
 
-		serializer = SessionSerializer(mentorship, many = True)
+		serializer = SessionSerializer(sessions, many = True)
 		return Response({"sessions": serializer.data}, status = status.HTTP_200_OK)
-
-	except Exception as error:
-		return Response({"Error": str(error)}, status = status.HTTP_400_BAD_REQUEST)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def GetMentorSessions(request):
 	try:
 		mentor = request.user
-		sessions = mentor.mentees.sessions.all()
+		sessions = Session.objects.filter(mentorship__mentor=mentor)
 
 		serializer = SessionSerializer(sessions, many = True)
 		return Response({"sessions": serializer.data}, status = status.HTTP_200_OK)
 	
 	except Exception as error:
 		return Response({"Error": str(error)}, status = status.HTTP_400_BAD_REQUEST)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def set_availability(request):
+    user = request.user
+
+    if not user.profile.role == "mentor":
+        return Response({'detail': 'Only mentors can set availability.'}, status=403)
+
+    data = request.data
+    try:
+        date_str = data.get('date')
+        start_str = data.get('start')
+        end_str = data.get('end')
+
+        if not (date_str and start_str and end_str):
+            raise ValueError("All fields required")
+
+        date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+        start_time = datetime.strptime(start_str, '%H:%M').time()
+        end_time = datetime.strptime(end_str, '%H:%M').time()
+
+        if start_time >= end_time:
+            return Response({'detail': 'Start time must be before end time.'}, status=400)
+
+        # Save it
+        Availability.objects.create(
+            mentor=user,
+            date=date_obj,
+            start=start_time,
+            end=end_time,
+        )
+        return Response({'detail': 'Availability block created.'}, status=200)
+
+    except Exception as e:
+        return Response({'detail': f'Invalid input. {str(e)}'}, status=400)
 
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
@@ -282,14 +355,14 @@ def SubmitFeedback(request, id):
 	except Exception as error:
 		return Response({"Error": str(error)}, status = status.HTTP_400_BAD_REQUEST)
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated, IsAdminUser])
+@api_view(['GET'])
+# @permission_classes([IsAuthenticated, IsAdminUser])
 def ListAllUsers(request):
 	try:
 		all_users = User.objects.all()
 		serializer = UserSerializer(all_users, many = True)
 
-		return Response({"users": serializer.data}, status = HTTP_200_OK)
+		return Response(serializer.data, status = status.HTTP_200_OK)
 
 	except Exception as error:
 		return Response({"Error": str(error)}, status = status.HTTP_400_BAD_REQUEST)
@@ -318,3 +391,61 @@ def DeleteNotifications(request):
 		return Response({"done": "successfully deleted all"}, status = status.HTTP_200_OK)
 	except Exception as error:
 		return Response({"Error": str(error)}, status = status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def my_mentorships(request):
+    mentorships = Mentorship.objects.filter(mentee=request.user)
+
+    # Optional: enrich the data with mentor username
+    data = []
+    for m in mentorships:
+        data.append({
+            'id': m.id,
+            'mentor': m.mentor.id,
+            'mentor_username': m.mentor.username,
+        })
+
+    return Response(data)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsAdminUser])
+def ManualMatch(request):
+	mentee_id = request.data.get('mentee_id')
+	mentor_id = request.data.get('mentor_id')
+
+	mentee_profile = get_object_or_404(Profile, pk = mentee_id)
+	mentor_profile = get_object_or_404(Profile, pk = mentor_id)
+
+	mentee = mentee_profile.user
+	mentor = mentor_profile.user
+
+	Mentorship.objects.create(
+		mentee = mentee,
+		mentor = mentor
+	)
+
+	Notification.objects.create(
+		user = mentee,
+		text = f"The admin user {request.user.username} matched you with the mentor {mentor.username}"
+	)
+
+	Notification.objects.create(
+		user = mentor,
+		text = f"The admin user {request.user.username} matched you with {mentee.username}"
+	)
+
+	Notification.objects.create(
+		user = request.user,
+		text = f"You mathced the mentee {mentee.username} with the mentor {mentor.username}"
+	)
+
+	return Response({"details": "Sucessfully matched"}, status = HTTP_200_OK)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsAdminUser])
+def GetAllSessions(request):
+	all_sessions = Session.objects.all()
+	serializer = SessionSerializer(all_sessions, many = True)
+
+	return Response(serializer.data, status = HTTP_200_OK)

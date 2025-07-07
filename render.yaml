@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: CapstoneProject
+    env: python
+    buildCommand: |
+      pip install -r requirements.txt
+      python manage.py collectstatic --no-input
+      python manage.py migrate
+    startCommand: gunicorn mentorship_project.wsgi:application
+    autoDeploy: true
+
+databases:
+  - name: matchmentor-db
+    databaseName: mentorship
+    user: mentorship_user

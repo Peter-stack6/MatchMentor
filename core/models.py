@@ -1,12 +1,12 @@
 from django.db import models
 from django.contrib.auth.models import User
-from cuid2 import Cuid
+from core.utils import cuid_wrapper
 
 class Profile(models.Model):
     id = models.CharField(
             primary_key = True,
             max_length = 255,
-            default = Cuid,
+            default = cuid_wrapper,
             editable = False
         )
     user = models.OneToOneField(User, on_delete = models.CASCADE, related_name = 'profile')
@@ -26,7 +26,7 @@ class Availability(models.Model):
     id = models.CharField(
             primary_key = True,
             max_length = 255,
-            default = Cuid,
+            default = cuid_wrapper,
             editable = False
         )
     mentor = models.ForeignKey(
@@ -40,7 +40,7 @@ class MentorshipRequest(models.Model):
     id = models.CharField(
         primary_key = True,
         max_length = 255,
-        default = Cuid,
+        default = cuid_wrapper,
         editable = False
     )
     mentee = models.ForeignKey(User, on_delete = models.CASCADE, related_name = 'mentee_request')
@@ -63,7 +63,7 @@ class Session(models.Model):
     id = models.CharField(
         primary_key = True,
         max_length = 255,
-        default = Cuid,
+        default = cuid_wrapper,
         editable = False
     )
     mentorship = models.ForeignKey(Mentorship, on_delete = models.SET_NULL, null = True, blank = True, related_name = 'sessions')

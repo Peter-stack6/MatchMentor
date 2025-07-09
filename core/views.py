@@ -29,43 +29,33 @@ def Dashboard(request):
 def ViewProfile(request):
 	return render(request, "viewProfile.html")
 
-@login_required(login_url = 'login/')
 def EditProfile(request):
 	return render(request, "editProfile.html")
 
-@login_required(login_url = 'login/')
 def AdminRegister(request):
 	return render(request, "register.html")
 
-@login_required(login_url = 'login/')
 def Mentors(request):
 	return render(request, "mentors.html")
 
-@login_required(login_url = 'login/')
 def MyRequests(request):
 	return render(request, "my_requests.html")
 
-@login_required(login_url = 'login/')
 def MySessions(request):
 	return render(request, "my_sessions.html")
 
-@login_required(login_url = 'login/')
 def availability(request):
 	return render(request, "availability.html")
 
-@login_required(login_url = 'login/') 
 def mentor_requests(request):
 	return render(request, "requests.html")
 
-@login_required(login_url = 'login/') 
 def mentor_sessions(request):
 	return render(request, "mentor_sessions.html")
 
-@login_required(login_url = 'login/') 
 def matches(request):
 	return render(request, "matches.html")
 
-@login_required(login_url = 'login/') 
 def sessions(request):
 	return render(request, "sessions.html")
 

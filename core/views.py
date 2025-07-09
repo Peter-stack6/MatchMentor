@@ -21,11 +21,9 @@ def HomePage(request):
 def LogIn(request):
 	return render(request, "login.html")
 
-@login_required(login_url = 'login/')
 def Dashboard(request):
 	return render(request, "dashboard.html")
-
-@login_required(login_url = 'login/')
+	
 def ViewProfile(request):
 	return render(request, "viewProfile.html")
 
